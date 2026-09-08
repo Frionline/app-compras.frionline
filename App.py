@@ -281,25 +281,28 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             
             st.markdown("---")
             
-# EXPORTAÇÃO DE DADOS (EXCEL / CSV)
+# EXPORTAÇÃO DE DADOS (EXCEL / CSV - 100% NATIVO SEM OPENPYXL)
             st.subheader("📥 Exportar Dados")
             col_exp1, col_exp2 = st.columns(2)
             
-            # Exportar CSV
-            csv = df.to_csv(index=False).encode('utf-8')
-            col_exp1.download_button("💾 Baixar Tabela em CSV", csv, "solicitacoes_compras.csv", "text/csv")
+            # 1. Exportar CSV (Compatível com Excel)
+            # utf-8-sig garante que acentos e ç apareçam corretos no Excel no Windows
+            csv_data = df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+            col_exp1.download_button(
+                label="💾 Baixar Tabela em CSV (Excel)",
+                data=csv_data,
+                file_name="solicitacoes_compras.csv",
+                mime="text/csv"
+            )
             
-            # Exportar Excel com io.BytesIO
-            import io
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False, sheet_name='Solicitacoes')
-            
+            # 2. Exportar em Formato XLS Nativo (Abre direto no Excel sem precisar de openpyxl)
+            html_table = df.to_html(index=False)
             col_exp2.download_button(
-                label="📊 Baixar Tabela em Excel (.xlsx)",
-                data=buffer.getvalue(),
-                file_name="solicitacoes_compras.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="📊 Baixar Tabela Compatível Excel (.xls)",
+                data=html_table,
+                file_name="solicitacoes_compras.xls",
+                mime="application/vnd.ms-excel"
+            )
             )
 
             st.markdown("---")
