@@ -304,7 +304,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "admin123":
+    if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
