@@ -24,7 +24,7 @@ st.set_page_config(page_title="Solicitação de Compras - Fri On Line", page_ico
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DE E-MAIL (INSIRA A SENHA DE APP DO GOOGLE ABAIXO)
 # -----------------------------------------------------------------------------
-EMAIL_DESTINO_ADMIN = "logistica@frionline.com.br"
+EMAIL_DESTINO_ADMIN = "franciel.frionline@gmail.com"
 EMAIL_REMETENTE = "franciel.frionline@gmail.com"
 SENHA_EMAIL_APP = "hiea txae mkrm fjmx"  # Insira a senha de app do Google aqui
 
@@ -179,12 +179,12 @@ if menu == "📝 Nova Solicitação":
         # Seleção de Rateio
         tem_rateio = st.selectbox(
             "Essa aquisição tem Rateio no Centro de custo? *", 
-            ["Não", "Outro"]
+            ["Não", "Sim"]
         )
         
         # Campo dinâmico ativado para detalhar valor ou porcentagem do rateio
         detalhe_rateio = st.text_area(
-            "Especifique o valor ou porcentagem do rateio (Necessário caso selecione 'Outro'):",
+            "Especifique o valor ou porcentagem do rateio (Necessário caso selecione 'Sim'):",
             placeholder="Exemplo:\n50% TI (R$ 500,00) / 50% Financeiro (R$ 500,00)\nou\nTI: R$ 300,00 | RH: R$ 700,00"
         )
 
@@ -199,8 +199,8 @@ if menu == "📝 Nova Solicitação":
                 erros.append("Selecione um Setor válido.")
             if not produtos_qtd or not justificativa:
                 erros.append("Informe os produtos e a justificativa.")
-            if tem_rateio == "Outro" and not detalhe_rateio.strip():
-                erros.append("Ao selecionar 'Outro' em Rateio, é obrigatório digitar os valores ou porcentagens correspondentes.")
+            if tem_rateio == "Sim" and not detalhe_rateio.strip():
+                erros.append("Ao selecionar 'Sim' em Rateio, é obrigatório digitar os valores ou porcentagens correspondentes.")
 
             if erros:
                 for erro in erros:
@@ -225,7 +225,7 @@ if menu == "📝 Nova Solicitação":
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
                       previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
-                      detalhe_rateio if tem_rateio == "Outro" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-"))
+                      detalhe_rateio if tem_rateio == "Sim" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-"))
                 conn.commit()
                 conn.close()
                 
@@ -238,7 +238,7 @@ if menu == "📝 Nova Solicitação":
                 <p><b>Setor:</b> {setor}</p>
                 <p><b>Tipo:</b> {tipo_solicitacao}</p>
                 <p><b>Produtos:</b><br>{produtos_qtd.replace('\n', '<br>')}</p>
-                <p><b>Rateio:</b> {tem_rateio} ({detalhe_rateio if tem_rateio == 'Outro' else 'N/A'})</p>
+                <p><b>Rateio:</b> {tem_rateio} ({detalhe_rateio if tem_rateio == 'Sim' else 'N/A'})</p>
                 <p><b>Justificativa:</b> {justificativa}</p>
                 """
                 enviar_email(EMAIL_DESTINO_ADMIN, f"[NOVO PEDIDO] Protocolo {protocolo} - {requisitante}", corpo_email_admin, caminho_salvo if caminho_salvo != "-" else None)
