@@ -281,27 +281,25 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             
             st.markdown("---")
             
-# EXPORTAÇÃO DE DADOS (EXCEL / CSV - 100% NATIVO SEM OPENPYXL)
             st.subheader("📥 Exportar Dados")
             col_exp1, col_exp2 = st.columns(2)
             
-            # 1. Exportar CSV (Compatível com Excel)
-            # utf-8-sig garante que acentos e ç apareçam corretos no Excel no Windows
+            # Exportação CSV
             csv_data = df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
             col_exp1.download_button(
                 label="💾 Baixar Tabela em CSV (Excel)",
                 data=csv_data,
                 file_name="solicitacoes_compras.csv",
                 mime="text/csv"
+            )
             
-            # 2. Exportar em Formato XLS Nativo (Abre direto no Excel sem precisar de openpyxl)
+            # Exportação HTML/XLS Nativ do Excel
             html_table = df.to_html(index=False)
             col_exp2.download_button(
                 label="📊 Baixar Tabela Compatível Excel (.xls)",
                 data=html_table,
                 file_name="solicitacoes_compras.xls",
                 mime="application/vnd.ms-excel"
-            )
             )
 
             st.markdown("---")
@@ -315,7 +313,11 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             
             if dado_atual['caminho_anexo'] != "-" and os.path.exists(dado_atual['caminho_anexo']):
                 with open(dado_atual['caminho_anexo'], "rb") as file:
-                    st.download_button(label="📎 Baixar Anexo Enviado pelo Colaborador", data=file, file_name=os.path.basename(dado_atual['caminho_anexo']))
+                    st.download_button(
+                        label="📎 Baixar Anexo Enviado pelo Colaborador",
+                        data=file,
+                        file_name=os.path.basename(dado_atual['caminho_anexo'])
+                    )
 
             with st.form("form_atualizar"):
                 c_a, c_b = st.columns(2)
