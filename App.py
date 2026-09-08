@@ -281,16 +281,26 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             
             st.markdown("---")
             
+# EXPORTAÇÃO DE DADOS (EXCEL / CSV)
             st.subheader("📥 Exportar Dados")
             col_exp1, col_exp2 = st.columns(2)
             
+            # Exportar CSV
             csv = df.to_csv(index=False).encode('utf-8')
             col_exp1.download_button("💾 Baixar Tabela em CSV", csv, "solicitacoes_compras.csv", "text/csv")
             
-            excel_file = os.path.join(BASE_DIR, "solicitacoes_compras.xlsx")
-            df.to_excel(excel_file, index=False)
-            with open(excel_file, "rb") as f:
-                col_exp2.download_button("📊 Baixar Tabela em Excel (.xlsx)", f, file_name="solicitacoes_compras.xlsx")
+            # Exportar Excel com io.BytesIO
+            import io
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Solicitacoes')
+            
+            col_exp2.download_button(
+                label="📊 Baixar Tabela em Excel (.xlsx)",
+                data=buffer.getvalue(),
+                file_name="solicitacoes_compras.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
             st.markdown("---")
             
