@@ -26,7 +26,7 @@ st.set_page_config(page_title="Solicitação de Compras - Fri On Line", page_ico
 # -----------------------------------------------------------------------------
 EMAIL_DESTINO_ADMIN = "franciel.frionline@gmail.com"
 EMAIL_REMETENTE = "franciel.frionline@gmail.com"
-SENHA_EMAIL_APP = "hieatxaemkrmfjmx"  # Senha sem espaços
+SENHA_EMAIL_APP = "hieatxaemkrmfjmx"
 
 # Função para obter a hora exata no Fuso Horário de Brasília
 def obter_hora_brasilia():
@@ -64,7 +64,7 @@ def enviar_email(destino, assunto, corpo, caminho_anexo=None):
         st.error(f"Erro ao enviar e-mail: {e}")
         return False
 
-# Inicialização do Banco de Dados
+# Inicialização e Migração do Banco de Dados
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -87,9 +87,17 @@ def init_db():
             status TEXT,
             aprovado TEXT,
             data_compra TEXT,
-            previsao_entrega TEXT
+            previsao_entrega TEXT,
+            motivo_reprovacao TEXT
         )
     ''')
+    
+    # Adiciona a coluna 'motivo_reprovacao' se a tabela já existia sem ela
+    c.execute("PRAGMA table_info(solicitacoes)")
+    colunas = [coluna[1] for coluna in c.fetchall()]
+    if "motivo_reprovacao" not in colunas:
+        c.execute("ALTER TABLE solicitacoes ADD COLUMN motivo_reprovacao TEXT DEFAULT '-'")
+        
     conn.commit()
     conn.close()
 
@@ -140,10 +148,6 @@ if menu == "📝 Nova Solicitação":
     
     st.markdown("---")
 
-    # Controle do estado dinâmico da seleção de rateio
-    if "opcao_rateio" not in st.session_state:
-        st.session_state.opcao_rateio = "Não"
-
     with st.form("form_compra", clear_on_submit=True):
         st.subheader("1. Identificação do Solicitante")
         col1, col2, col3 = st.columns(3)
@@ -175,17 +179,14 @@ if menu == "📝 Nova Solicitação":
         arquivo_anexo = st.file_uploader("Anexar Documento / Foto / Cotação (PDF, PNG, JPG, XLSX)", type=["pdf", "png", "jpg", "jpeg", "xlsx"])
 
         st.subheader("4. Rateio e Centro de Custo")
-        
-        # Seleção de Rateio
         tem_rateio = st.selectbox(
             "Essa aquisição tem Rateio no Centro de custo? *", 
-            ["Não", "Sim"]
+            ["Não", "Outro"]
         )
         
-        # Campo dinâmico ativado para detalhar valor ou porcentagem do rateio
         detalhe_rateio = st.text_area(
-            "Especifique o valor ou porcentagem do rateio (Necessário caso selecione 'Sim'):",
-            placeholder="Exemplo:\n50% TI (R$ 500,00) / 50% Financeiro (R$ 500,00)\nou\nTI: R$ 300,00 | RH: R$ 700,00"
+            "Especifique o valor ou porcentagem do rateio (Necessário caso selecione 'Outro'):",
+            placeholder="Exemplo:\n50% TI (R$ 500,00) / 50% Financeiro (R$ 500,00)"
         )
 
         st.markdown("---")
@@ -199,8 +200,8 @@ if menu == "📝 Nova Solicitação":
                 erros.append("Selecione um Setor válido.")
             if not produtos_qtd or not justificativa:
                 erros.append("Informe os produtos e a justificativa.")
-            if tem_rateio == "Sim" and not detalhe_rateio.strip():
-                erros.append("Ao selecionar 'Sim' em Rateio, é obrigatório digitar os valores ou porcentagens correspondentes.")
+            if tem_rateio == "Outro" and not detalhe_rateio.strip():
+                erros.append("Ao selecionar 'Outro' em Rateio, é obrigatório digitar os valores ou porcentagens correspondentes.")
 
             if erros:
                 for erro in erros:
@@ -221,11 +222,11 @@ if menu == "📝 Nova Solicitação":
                     INSERT INTO solicitacoes 
                     (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
                      previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
-                     detalhe_rateio, caminho_anexo, status, aprovado, data_compra, previsao_entrega)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     detalhe_rateio, caminho_anexo, status, aprovado, data_compra, previsao_entrega, motivo_reprovacao)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
                       previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
-                      detalhe_rateio if tem_rateio == "Sim" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-"))
+                      detalhe_rateio if tem_rateio == "Outro" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-", "-"))
                 conn.commit()
                 conn.close()
                 
@@ -238,7 +239,7 @@ if menu == "📝 Nova Solicitação":
                 <p><b>Setor:</b> {setor}</p>
                 <p><b>Tipo:</b> {tipo_solicitacao}</p>
                 <p><b>Produtos:</b><br>{produtos_qtd.replace('\n', '<br>')}</p>
-                <p><b>Rateio:</b> {tem_rateio} ({detalhe_rateio if tem_rateio == 'Sim' else 'N/A'})</p>
+                <p><b>Rateio:</b> {tem_rateio} ({detalhe_rateio if tem_rateio == 'Outro' else 'N/A'})</p>
                 <p><b>Justificativa:</b> {justificativa}</p>
                 """
                 enviar_email(EMAIL_DESTINO_ADMIN, f"[NOVO PEDIDO] Protocolo {protocolo} - {requisitante}", corpo_email_admin, caminho_salvo if caminho_salvo != "-" else None)
@@ -289,9 +290,10 @@ elif menu == "🔍 Consultar Protocolo":
                 if item['aprovado'] == "Sim":
                     st.success(f"📅 **Data da Compra:** {item['data_compra']} | 🚚 **Previsão de Entrega:** {item['previsao_entrega']}")
                 elif item['aprovado'] == "Não":
-                    st.error("❌ **Compra não autorizada.**")
+                    st.error(f"❌ **Compra Não Autorizada.**")
+                    st.warning(f"<b>Motivo da Não Aprovação:</b> {item.get('motivo_reprovacao', 'Não especificado')}")
                 else:
-                    st.warning("⏳ **Solicitação em análise pelo setor de compras.**")
+                    st.info("⏳ **Solicitação em análise pelo setor de compras.**")
             else:
                 st.error("Protocolo não encontrado.")
 
@@ -302,7 +304,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "Frion@2603":
+    if senha == "admin123":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -370,30 +372,52 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 with c_d:
                     dt_entrega = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=dado_atual['previsao_entrega'])
                 
-                if st.form_submit_button("Salvar Alterações e Notificar Requisitante"):
-                    conn = sqlite3.connect(DB_PATH)
-                    c = conn.cursor()
-                    c.execute('''
-                        UPDATE solicitacoes 
-                        SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?
-                        WHERE protocolo = ?
-                    ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, protocolo_sel))
-                    conn.commit()
-                    conn.close()
-                    
-                    corpo_email_usuario = f"""
-                    <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
-                    <p>Olá, {dado_atual['requisitante']}!</p>
-                    <p><b>Protocolo:</b> {protocolo_sel}</p>
-                    <p><b>Status Atual:</b> {novo_status}</p>
-                    <p><b>Compra Aprovada?:</b> {nova_aprovacao}</p>
-                    <p><b>Data da Compra:</b> {dt_compra}</p>
-                    <p><b>Previsão de Entrega:</b> {dt_entrega}</p>
-                    """
-                    enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
+                # Campo de Justificativa de Reprovação
+                motivo_reprovacao = st.text_area(
+                    "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada):",
+                    value=dado_atual.get('motivo_reprovacao', '') if dado_atual.get('motivo_reprovacao') != '-' else ''
+                )
 
-                    st.success(f"Protocolo {protocolo_sel} atualizado e e-mail enviado para {dado_atual['email_requisitante']} com sucesso!")
-                    st.rerun()
+                if st.form_submit_button("Salvar Alterações e Notificar Requisitante"):
+                    if nova_aprovacao == "Não" and not motivo_reprovacao.strip():
+                        st.error("⚠️ Digite o motivo da não aprovação para prosseguir.")
+                    else:
+                        motivo_salvar = motivo_reprovacao.strip() if nova_aprovacao == "Não" else "-"
+                        
+                        conn = sqlite3.connect(DB_PATH)
+                        c = conn.cursor()
+                        c.execute('''
+                            UPDATE solicitacoes 
+                            SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?, motivo_reprovacao = ?
+                            WHERE protocolo = ?
+                        ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, motivo_salvar, protocolo_sel))
+                        conn.commit()
+                        conn.close()
+                        
+                        # E-mail enviado ao colaborador
+                        if nova_aprovacao == "Não":
+                            corpo_email_usuario = f"""
+                            <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
+                            <p>Olá, <b>{dado_atual['requisitante']}</b>!</p>
+                            <p>Sua solicitação de compra <b>(Protocolo {protocolo_sel})</b> foi analisada e <b>NÃO FOI APROVADA</b>.</p>
+                            <p><b>Motivo da Não Aprovação:</b><br>{motivo_salvar}</p>
+                            <p>Caso tenha dúvidas, entre em contato com o setor de suprimentos/logística.</p>
+                            """
+                        else:
+                            corpo_email_usuario = f"""
+                            <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
+                            <p>Olá, <b>{dado_atual['requisitante']}</b>!</p>
+                            <p><b>Protocolo:</b> {protocolo_sel}</p>
+                            <p><b>Status Atual:</b> {novo_status}</p>
+                            <p><b>Compra Aprovada?:</b> {nova_aprovacao}</p>
+                            <p><b>Data da Compra:</b> {dt_compra}</p>
+                            <p><b>Previsão de Entrega:</b> {dt_entrega}</p>
+                            """
+                            
+                        enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
+
+                        st.success(f"Protocolo {protocolo_sel} atualizado e e-mail enviado para {dado_atual['email_requisitante']} com sucesso!")
+                        st.rerun()
         else:
             st.info("Nenhuma solicitação encontrada.")
     else:
