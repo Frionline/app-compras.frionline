@@ -102,7 +102,7 @@ def gerar_protocolo():
     count = c.fetchone()[0] + 1
     conn.close()
     ano = datetime.now(ZoneInfo("America/Sao_Paulo")).year
-    return f"SOL-{ano}-{count:04d}"
+    return f"FOL-{ano}-{count:04d}"
 
 LISTA_SETORES = [
     "Administração", "Back Office Atendimento", "Back Office Comercial", 
