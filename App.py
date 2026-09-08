@@ -290,8 +290,8 @@ elif menu == "🔍 Consultar Protocolo":
                 if item['aprovado'] == "Sim":
                     st.success(f"📅 **Data da Compra:** {item['data_compra']} | 🚚 **Previsão de Entrega:** {item['previsao_entrega']}")
                 elif item['aprovado'] == "Não":
-                    st.error(f"❌ **Compra Não Autorizada.**")
-                    st.warning(f"<b>Motivo da Não Aprovação:</b> {item.get('motivo_reprovacao', 'Não especificado')}")
+    st.error(f"❌ **Compra Não Autorizada.**")
+    st.warning(f"<b>Motivo da Não Aprovação:</b> {item.get('motivo_reprovacao', 'Não especificado')}")
                 else:
                     st.info("⏳ **Solicitação em análise pelo setor de compras.**")
             else:
@@ -304,7 +304,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "admin123":
+    if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
