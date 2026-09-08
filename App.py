@@ -263,7 +263,7 @@ if menu == "📝 Nova Solicitação":
 elif menu == "🔍 Consultar Protocolo":
     st.title("🔍 Acompanhar Status da Solicitação")
     
-    proto_busca = st.text_input("Digite o Número do Protocolo (ex: SOL-2026-0001):").strip()
+    proto_busca = st.text_input("Digite o Número do Protocolo (ex: FOL-2026-0001):").strip()
     
     if st.button("Buscar"):
         if proto_busca:
