@@ -291,7 +291,7 @@ elif menu == "🔍 Consultar Protocolo":
                     st.success(f"📅 **Data da Compra:** {item['data_compra']} | 🚚 **Previsão de Entrega:** {item['previsao_entrega']}")
                 elif item['aprovado'] == "Não":
     st.error(f"❌ **Compra Não Autorizada.**")
-    st.warning(f"<b>Motivo da Não Aprovação:</b> {item.get('motivo_reprovacao', 'Não especificado')}")
+    st.warning(f"**Motivo da Não Aprovação:** {item.get('motivo_reprovacao', 'Não especificado')}")
                 else:
                     st.info("⏳ **Solicitação em análise pelo setor de compras.**")
             else:
