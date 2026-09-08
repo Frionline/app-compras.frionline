@@ -293,7 +293,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 data=csv_data,
                 file_name="solicitacoes_compras.csv",
                 mime="text/csv"
-            )
             
             # 2. Exportar em Formato XLS Nativo (Abre direto no Excel sem precisar de openpyxl)
             html_table = df.to_html(index=False)
