@@ -22,11 +22,11 @@ if not os.path.exists(UPLOADS_DIR):
 st.set_page_config(page_title="Solicitação de Compras - Fri On Line", page_icon="🛒", layout="wide")
 
 # -----------------------------------------------------------------------------
-# CONFIGURAÇÃO DE E-MAIL (INSIRA A SENHA DE APP DO GOOGLE ABAIXO)
+# CONFIGURAÇÃO DE E-MAIL
 # -----------------------------------------------------------------------------
 EMAIL_DESTINO_ADMIN = "franciel.frionline@gmail.com"
 EMAIL_REMETENTE = "franciel.frionline@gmail.com"
-SENHA_EMAIL_APP = "hiea txae mkrm fjmx"  # Insira a senha de app do Google aqui
+SENHA_EMAIL_APP = "hieatxaemkrmfjmx"  # Senha sem espaços
 
 # Função para obter a hora exata no Fuso Horário de Brasília
 def obter_hora_brasilia():
@@ -34,7 +34,7 @@ def obter_hora_brasilia():
 
 # Função para envio de e-mails via SMTP Gmail
 def enviar_email(destino, assunto, corpo, caminho_anexo=None):
-    if SENHA_EMAIL_APP == "hiea txae mkrm fjmx":
+    if not SENHA_EMAIL_APP or SENHA_EMAIL_APP == "sua_senha_de_app_aqui":
         st.warning("⚠️ E-mail não enviado: A senha do aplicativo Google ainda não foi configurada no código.")
         return False
         
