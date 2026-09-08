@@ -290,8 +290,8 @@ elif menu == "🔍 Consultar Protocolo":
                 if item['aprovado'] == "Sim":
                     st.success(f"📅 **Data da Compra:** {item['data_compra']} | 🚚 **Previsão de Entrega:** {item['previsao_entrega']}")
                 elif item['aprovado'] == "Não":
-    st.error(f"❌ **Compra Não Autorizada.**")
-    st.warning(f"**Motivo da Não Aprovação:** {item.get('motivo_reprovacao', 'Não especificado')}")
+                    st.error(f"❌ **Compra Não Autorizada.**")
+                    st.warning(f"**Motivo da Não Aprovação:** {item.get('motivo_reprovacao', 'Não especificado')}")
                 else:
                     st.info("⏳ **Solicitação em análise pelo setor de compras.**")
             else:
@@ -304,7 +304,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "Frion@2603":
+    if senha == "admin123":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -372,7 +372,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 with c_d:
                     dt_entrega = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=dado_atual['previsao_entrega'])
                 
-                # Campo de Justificativa de Reprovação
                 motivo_reprovacao = st.text_area(
                     "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada):",
                     value=dado_atual.get('motivo_reprovacao', '') if dado_atual.get('motivo_reprovacao') != '-' else ''
@@ -394,7 +393,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                         conn.commit()
                         conn.close()
                         
-                        # E-mail enviado ao colaborador
                         if nova_aprovacao == "Não":
                             corpo_email_usuario = f"""
                             <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
