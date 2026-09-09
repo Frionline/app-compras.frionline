@@ -86,14 +86,26 @@ def init_db():
             aprovado TEXT,
             data_compra TEXT,
             previsao_entrega TEXT,
-            motivo_reprovacao TEXT
+            motivo_reprovacao TEXT,
+            valor_final TEXT,
+            forma_pagamento TEXT,
+            historico_log TEXT
         )
     ''')
     
     c.execute("PRAGMA table_info(solicitacoes)")
     colunas = [coluna[1] for coluna in c.fetchall()]
-    if "motivo_reprovacao" not in colunas:
-        c.execute("ALTER TABLE solicitacoes ADD COLUMN motivo_reprovacao TEXT DEFAULT '-'")
+    
+    colunas_novas = {
+        "motivo_reprovacao": "TEXT DEFAULT '-'",
+        "valor_final": "TEXT DEFAULT '-'",
+        "forma_pagamento": "TEXT DEFAULT '-'",
+        "historico_log": "TEXT DEFAULT ''"
+    }
+    
+    for col, tipo in colunas_novas.items():
+        if col not in colunas:
+            c.execute(f"ALTER TABLE solicitacoes ADD COLUMN {col} {tipo}")
         
     conn.commit()
     conn.close()
@@ -205,6 +217,7 @@ if menu == "📝 Nova Solicitação":
             else:
                 protocolo = gerar_protocolo()
                 data_pedido = obter_hora_brasilia()
+                log_inicial = f"[{data_pedido}] Solicitação criada pelo colaborador.\n"
                 
                 caminho_salvo = "-"
                 if arquivo_anexo is not None:
@@ -218,11 +231,12 @@ if menu == "📝 Nova Solicitação":
                     INSERT INTO solicitacoes 
                     (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
                      previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
-                     detalhe_rateio, caminho_anexo, status, aprovado, data_compra, previsao_entrega, motivo_reprovacao)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     detalhe_rateio, caminho_anexo, status, aprovado, data_compra, previsao_entrega, motivo_reprovacao,
+                     valor_final, forma_pagamento, historico_log)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
                       previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
-                      detalhe_rateio if tem_rateio == "Outro" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-", "-"))
+                      detalhe_rateio if tem_rateio == "Outro" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-", "-", "-", "-", log_inicial))
                 conn.commit()
                 conn.close()
                 
@@ -292,13 +306,13 @@ elif menu == "🔍 Consultar Protocolo":
                 st.error("Protocolo não encontrado.")
 
 # -----------------------------------------------------------------------------
-# 3. ABA: DASHBOARD & PAINEL DE GESTÃO (VOCÊ - COMPRAS)
+# 3. ABA: DASHBOARD & PAINEL DE GESTÃO (APENAS ADMINISTRADOR)
 # -----------------------------------------------------------------------------
 elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "Frion@2603":
+    if senha == "admin123":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -308,7 +322,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
         if not df_raw.empty:
             df_raw['data_dt'] = pd.to_datetime(df_raw['data_pedido'].str.slice(0, 10), format='%d/%m/%Y', errors='coerce')
             
-            # NOTIFICAÇÃO VISUAL NO DASHBOARD: PEDIDOS EM "AGUARDANDO" HÁ MAIS DE 2 DIAS (TRATAMENTO SEGURO)
             agora = pd.to_datetime(datetime.now(ZoneInfo("America/Sao_Paulo")).date())
             df_raw['dias_parado'] = (agora - df_raw['data_dt']).dt.days
             pendentes_antigos = df_raw[(df_raw['status'] == 'Aguardando') & (df_raw['dias_parado'] >= 2)]
@@ -316,10 +329,9 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             if not pendentes_antigos.empty:
                 st.warning(
                     f"⏰ **LEMBRETE DE PENDÊNCIAS:** Você tem **{len(pendentes_antigos)} solicitação(ões)** com status 'Aguardando' há mais de 2 dias sem alteração!\n\n" +
-                    " Protocolos que precisam de andamento: " + ", ".join(f"`{p}`" for p in pendentes_antigos['protocolo'].tolist())
+                    " Protocolos: " + ", ".join(f"`{p}`" for p in pendentes_antigos['protocolo'].tolist())
                 )
 
-            # VISÃO GERAL E MÉTRICAS
             st.subheader("📈 Visão Geral dos Pedidos")
             col_m1, col_m2, col_m3, col_m4 = st.columns(4)
             col_m1.metric("Total de Pedidos", len(df_raw))
@@ -349,14 +361,12 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
 
             st.markdown("---")
 
-            # GRÁFICO POR SETOR
             st.subheader("📊 Gráfico de Solicitações por Setor")
             setores_count = df_raw['setor'].value_counts()
             st.bar_chart(setores_count)
 
             st.markdown("---")
             
-            # EXPORTAR RELATÓRIOS E SELEÇÃO DE PERÍODO
             st.subheader("📥 Exportar Relatórios e Selecionar Período")
             st.write("Por padrão, a tabela exporta **todo o histórico**. Se desejar um período específico, altere as datas abaixo:")
             
@@ -391,7 +401,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
 
             st.markdown("---")
             
-            # SOLICITAÇÕES REGISTRADAS
             st.subheader(f"📋 Solicitações Registradas - Categoria Filtrada: ({st.session_state.filtro_status})")
             
             df_exibicao = df_raw.copy()
@@ -404,7 +413,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             elif st.session_state.filtro_status == "Recusados":
                 df_exibicao = df_exibicao[df_exibicao['aprovado'] == 'Não']
 
-            # Pesquisa por SETOR
             setor_pesquisa = st.selectbox(
                 "🔍 Pesquisar/Filtrar por Setor Específico:",
                 ["Todos os Setores"] + LISTA_SETORES
@@ -441,6 +449,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                         st.markdown(f"**Status Atual:** {row['status']}")
                         st.markdown(f"**Compra Aprovada?:** {row['aprovado']}")
                         st.markdown(f"**Data da Compra:** {row['data_compra']} | **Previsão:** {row['previsao_entrega']}")
+                        st.markdown(f"**Valor Final:** {row.get('valor_final', '-')} | **Forma Pagto:** {row.get('forma_pagamento', '-')}")
                         if row['aprovado'] == "Não":
                             st.markdown(f"**Motivo da Recusa:** {row['motivo_reprovacao']}")
                     
@@ -450,19 +459,35 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                     if row['fornecedores']:
                         st.markdown(f"**🔗 Fornecedores Sugeridos / Links:**\n{row['fornecedores']}")
                     
-                    if row['caminho_anexo'] != "-" and os.path.exists(row['caminho_anexo']):
-                        with open(row['caminho_anexo'], "rb") as file:
-                            st.download_button(
-                                label="📎 Baixar Anexo da Solicitação",
-                                data=file,
-                                file_name=os.path.basename(row['caminho_anexo']),
-                                key=f"btn_anexo_{row['protocolo']}"
-                            )
+                    if row.get('historico_log'):
+                        st.markdown(f"**📜 Histórico de Alterações:**\n```text\n{row['historico_log']}\n```")
+
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        if row['caminho_anexo'] != "-" and os.path.exists(row['caminho_anexo']):
+                            with open(row['caminho_anexo'], "rb") as file:
+                                st.download_button(
+                                    label="📎 Baixar Anexo",
+                                    data=file,
+                                    file_name=os.path.basename(row['caminho_anexo']),
+                                    key=f"btn_anexo_{row['protocolo']}"
+                                )
+                    with col_btn2:
+                        if st.button(f"📧 Reenviar Notificação E-mail", key=f"reenviar_{row['protocolo']}"):
+                            corpo_reenvio = f"""
+                            <h2>Notificação de Acompanhamento - Fri On Line</h2>
+                            <p>Olá, <b>{row['requisitante']}</b>!</p>
+                            <p><b>Protocolo:</b> {row['protocolo']}</p>
+                            <p><b>Status Atual:</b> {row['status']}</p>
+                            <p><b>Aprovado?:</b> {row['aprovado']}</p>
+                            """
+                            enviar_email(row['email_requisitante'], f"[LEMBRETE] Pedido {row['protocolo']}", corpo_reenvio)
+                            st.success("E-mail reenviado com sucesso!")
 
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # ATUALIZAR PEDIDO E STATUS (CAMPOS ZERADOS E OCULTOS POR PADRÃO)
+            # ATUALIZAR PEDIDO E STATUS (FINANCEIRO + LOG + OCULTO POR PADRÃO)
             # -----------------------------------------------------------------
             st.subheader("✏️ Atualizar Pedido e Status")
             
@@ -492,8 +517,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 with st.form("form_atualizar"):
                     c_a, c_b = st.columns(2)
                     with c_a:
-                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"] else 0
-                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"], index=idx_status)
+                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"] else 0
+                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"], index=idx_status)
                     with c_b:
                         idx_aprov = ["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0
                         nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"], index=idx_aprov)
@@ -504,6 +529,12 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                     with c_d:
                         dt_entrega = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=dado_atual['previsao_entrega'])
                     
+                    c_e, c_f = st.columns(2)
+                    with c_e:
+                        v_final = st.text_input("Valor Final da Compra (R$)", value=dado_atual.get('valor_final', '-'))
+                    with c_f:
+                        f_pagto = st.text_input("Forma de Pagamento", value=dado_atual.get('forma_pagamento', '-'))
+
                     motivo_reprovacao = st.text_area(
                         "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada):",
                         value=dado_atual.get('motivo_reprovacao', '') if dado_atual.get('motivo_reprovacao') != '-' else ''
@@ -515,13 +546,19 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                         else:
                             motivo_salvar = motivo_reprovacao.strip() if nova_aprovacao == "Não" else "-"
                             
+                            # Registro do Log
+                            hora_atual = obter_hora_brasilia()
+                            novo_log_item = f"[{hora_atual}] Status: {novo_status} | Aprovado: {nova_aprovacao}\n"
+                            log_atualizado = str(dado_atual.get('historico_log', '')) + novo_log_item
+
                             conn = sqlite3.connect(DB_PATH)
                             c = conn.cursor()
                             c.execute('''
                                 UPDATE solicitacoes 
-                                SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?, motivo_reprovacao = ?
+                                SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?, 
+                                    motivo_reprovacao = ?, valor_final = ?, forma_pagamento = ?, historico_log = ?
                                 WHERE protocolo = ?
-                            ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, motivo_salvar, protocolo_sel))
+                            ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, motivo_salvar, v_final, f_pagto, log_atualizado, protocolo_sel))
                             conn.commit()
                             conn.close()
                             
