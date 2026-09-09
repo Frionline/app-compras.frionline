@@ -303,7 +303,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "admin123":
+    if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -311,77 +311,76 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
         conn.close()
         
         if not df_raw.empty:
-            # Tratamento de datas para o filtro de período
+            # Tratamento de data para cálculos e filtros
             df_raw['data_dt'] = pd.to_datetime(df_raw['data_pedido'].str.slice(0, 10), format='%d/%m/%Y', errors='coerce')
             
-            # FILTRO DE PERÍODO PERSONALIZADO
-            st.subheader("📅 Selecionar Período de Análise")
-            col_f1, col_f2 = st.columns(2)
+            # VISÃO GERAL E MÉTRICAS
+            st.subheader("📈 Visão Geral dos Pedidos")
+            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+            col_m1.metric("Total de Pedidos", len(df_raw))
+            col_m2.metric("Aguardando Cotação", len(df_raw[df_raw['status'] == 'Aguardando']))
+            col_m3.metric("Compras Aprovadas", len(df_raw[df_raw['aprovado'] == 'Sim']))
+            col_m4.metric("Compras Recusadas", len(df_raw[df_raw['aprovado'] == 'Não']))
             
+            st.write("**Filtrar lista rápida e rolar até as solicitações:**")
+            col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
+            
+            if "filtro_status" not in st.session_state:
+                st.session_state.filtro_status = "Todos"
+                
+            # Função auxiliar de rolagem com redirecionamento de âncora visual
+            def set_filtro_e_rolar(status_nome):
+                st.session_state.filtro_status = status_nome
+                st.markdown("<script>window.location.href='#solicitacoes_registradas';</script>", unsafe_allow_html=True)
+
+            if col_b1.button("📋 Todos"):
+                set_filtro_e_rolar("Todos")
+            if col_b2.button("⏳ Aguardando Cotação"):
+                set_filtro_e_rolar("Aguardando")
+            if col_b3.button("🔄 Em Cotação"):
+                set_filtro_e_rolar("Em Cotação")
+            if col_b4.button("✅ Compras Aprovadas"):
+                set_filtro_e_rolar("Aprovados")
+            if col_b5.button("❌ Compras Recusadas"):
+                set_filtro_e_rolar("Recusados")
+
+            st.markdown("---")
+
+            # GRÁFICO POR SETOR
+            st.subheader("📊 Gráfico de Solicitações por Setor")
+            setores_count = df_raw['setor'].value_counts()
+            st.bar_chart(setores_count)
+
+            st.markdown("---")
+            
+            # EXPORTAR RELATÓRIOS E SELEÇÃO DE PERÍODO
+            st.subheader("📥 Exportar Relatórios e Selecionar Período")
+            st.write("Por padrão, a tabela exporta **todo o histórico**. Se desejar um período específico, altere os campos abaixo:")
+            
+            col_f1, col_f2 = st.columns(2)
             min_date = df_raw['data_dt'].min().date() if not df_raw['data_dt'].isna().all() else date.today()
             max_date = df_raw['data_dt'].max().date() if not df_raw['data_dt'].isna().all() else date.today()
             
             dt_inicio = col_f1.date_input("Data Inicial", min_date)
             dt_fim = col_f2.date_input("Data Final", max_date)
             
-            # Filtrando Dataframe pelo período
-            df = df_raw[(df_raw['data_dt'].dt.date >= dt_inicio) & (df_raw['data_dt'].dt.date <= dt_fim)].copy()
+            # Filtro aplicado para a exportação
+            df_export = df_raw[(df_raw['data_dt'].dt.date >= dt_inicio) & (df_raw['data_dt'].dt.date <= dt_fim)].copy()
+            if df_export.empty:
+                df_export = df_raw.copy()
             
-            st.markdown("---")
-            
-            # VISÃO GERAL E MÉTRICAS
-            st.subheader("📈 Visão Geral dos Pedidos (No Período)")
-            col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-            col_m1.metric("Total de Pedidos", len(df))
-            col_m2.metric("Aguardando Cotação", len(df[df['status'] == 'Aguardando']))
-            col_m3.metric("Compras Aprovadas", len(df[df['aprovado'] == 'Sim']))
-            col_m4.metric("Compras Recusadas", len(df[df['aprovado'] == 'Não']))
-            
-            # FILTROS RÁPIDOS POR METRICAS (BOTAO INTERATIVO)
-            st.write("**Filtrar lista rápida por status:**")
-            col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
-            
-            if "filtro_status" not in st.session_state:
-                st.session_state.filtro_status = "Todos"
-                
-            if col_b1.button("📋 Todos"):
-                st.session_state.filtro_status = "Todos"
-            if col_b2.button("⏳ Aguardando"):
-                st.session_state.filtro_status = "Aguardando"
-            if col_b3.button("🔄 Em Cotação"):
-                st.session_state.filtro_status = "Em Cotação"
-            if col_b4.button("✅ Aprovadas"):
-                st.session_state.filtro_status = "Aprovados"
-            if col_b5.button("❌ Recusadas"):
-                st.session_state.filtro_status = "Recusados"
-
-            # RELATÓRIOS GRÁFICOS POR SETOR
-            st.markdown("---")
-            st.subheader("📊 Relatório de Solicitações por Setor")
-            
-            if not df.empty:
-                setores_count = df['setor'].value_counts()
-                st.bar_chart(setores_count)
-            else:
-                st.info("Nenhum pedido registrado no período selecionado.")
-
-            st.markdown("---")
-            
-            # EXPORTAR DADOS
-            st.subheader("📥 Exportar Relatórios")
             col_exp1, col_exp2 = st.columns(2)
-            
-            csv_data = df.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
+            csv_data = df_export.to_csv(index=False, sep=';', encoding='utf-8-sig').encode('utf-8-sig')
             col_exp1.download_button(
-                label="💾 Baixar Dados do Período em CSV (Excel)",
+                label="💾 Baixar Relatório em CSV (Excel)",
                 data=csv_data,
                 file_name="relatorio_compras.csv",
                 mime="text/csv"
             )
             
-            html_table = df.to_html(index=False)
+            html_table = df_export.to_html(index=False)
             col_exp2.download_button(
-                label="📊 Baixar Dados do Período em .XLS (Excel)",
+                label="📊 Baixar Relatório em .XLS (Excel)",
                 data=html_table,
                 file_name="relatorio_compras.xls",
                 mime="application/vnd.ms-excel"
@@ -389,11 +388,12 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
 
             st.markdown("---")
             
-            # SOLICITAÇÕES REGISTRADAS (VISUALIZAÇÃO EM CARTÕES VERTICAIS)
+            # SOLICITAÇÕES REGISTRADAS (COM ÂNCORA PARA ROLAGEM AUTOMÁTICA)
+            st.markdown("<div id='solicitacoes_registradas'></div>", unsafe_allow_html=True)
             st.subheader("📋 Solicitações Registradas")
             
-            # Aplicação do Filtro do Botão Interativo
-            df_exibicao = df.copy()
+            # Filtragem por status de botão rápido
+            df_exibicao = df_raw.copy()
             if st.session_state.filtro_status == "Aguardando":
                 df_exibicao = df_exibicao[df_exibicao['status'] == 'Aguardando']
             elif st.session_state.filtro_status == "Em Cotação":
@@ -403,17 +403,16 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             elif st.session_state.filtro_status == "Recusados":
                 df_exibicao = df_exibicao[df_exibicao['aprovado'] == 'Não']
 
-            # Busca por Texto Livre
-            busca_texto = st.text_input("🔍 Pesquisar por Nome, Produto ou Fornecedor:", placeholder="Digite para filtrar...")
-            if busca_texto:
-                df_exibicao = df_exibicao[
-                    df_exibicao['requisitante'].str.contains(busca_texto, case=False, na=False) |
-                    df_exibicao['produtos_qtd'].str.contains(busca_texto, case=False, na=False) |
-                    df_exibicao['fornecedores'].str.contains(busca_texto, case=False, na=False) |
-                    df_exibicao['protocolo'].str.contains(busca_texto, case=False, na=False)
-                ]
+            # Pesquisa por SETOR
+            setor_pesquisa = st.selectbox(
+                "🔍 Pesquisar/Filtrar por Setor Específico:",
+                ["Todos os Setores"] + LISTA_SETORES
+            )
+            
+            if setor_pesquisa != "Todos os Setores":
+                df_exibicao = df_exibicao[df_exibicao['setor'] == setor_pesquisa]
 
-            st.write(f"Exibindo **{len(df_exibicao)}** solicitação(ões) encontrada(s):")
+            st.write(f"Exibindo **{len(df_exibicao)}** solicitação(ões) cadastrada(s):")
             
             # Apresentação em Cartões Expansíveis Verticais
             for _, row in df_exibicao.iterrows():
@@ -471,8 +470,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             with st.form("form_atualizar"):
                 c_a, c_b = st.columns(2)
                 with c_a:
-                    novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"],
-                        index=["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"] else 0)
+                    novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"],
+                        index=["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"] else 0)
                 with c_b:
                     nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"],
                         index=["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0)
