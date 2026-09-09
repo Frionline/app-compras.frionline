@@ -489,14 +489,11 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # ATUALIZAR PEDIDO E STATUS (AGORA COM 'COMPRADO' E 'COMPRA NÃO AUTORIZADA')
+            # ATUALIZAR PEDIDO E STATUS
             # -----------------------------------------------------------------
             st.subheader("✏️ Atualizar Pedido e Status")
             
             opcoes_protocolo = ["Selecione um protocolo..."] + df_raw["protocolo"].tolist()
-            
-            if "protocolo_selecionado" not in st.session_state:
-                st.session_state.protocolo_selecionado = "Selecione um protocolo..."
 
             protocolo_sel = st.selectbox(
                 "Selecione o Protocolo para Editar:",
@@ -590,7 +587,10 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                                 
                             enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
 
-                            st.session_state.protocolo_selecionado = "Selecione um protocolo..."
+                            # Limpa a chave do estado do widget de forma segura antes de recarregar a página
+                            if "protocolo_selecionado" in st.session_state:
+                                del st.session_state["protocolo_selecionado"]
+
                             st.success(f"Protocolo {protocolo_sel} atualizado e e-mail enviado com sucesso!")
                             st.rerun()
             else:
