@@ -312,7 +312,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "admin123":
+    if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -517,8 +517,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 with st.form("form_atualizar"):
                     c_a, c_b = st.columns(2)
                     with c_a:
-                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"] else 0
-                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"], index=idx_status)
+                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"] else 0
+                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"], index=idx_status)
                     with c_b:
                         idx_aprov = ["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0
                         nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"], index=idx_aprov)
