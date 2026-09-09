@@ -298,7 +298,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "admin123":
+    if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -308,8 +308,9 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
         if not df_raw.empty:
             df_raw['data_dt'] = pd.to_datetime(df_raw['data_pedido'].str.slice(0, 10), format='%d/%m/%Y', errors='coerce')
             
-            # NOTIFICAÇÃO VISUAL NO DASHBOARD: PEDIDOS EM "AGUARDANDO" HÁ MAIS DE 2 DIAS
-            df_raw['dias_parado'] = (datetime.now(ZoneInfo("America/Sao_Paulo")).date() - df_raw['data_dt'].dt.date).dt.days
+            # NOTIFICAÇÃO VISUAL NO DASHBOARD: PEDIDOS EM "AGUARDANDO" HÁ MAIS DE 2 DIAS (TRATAMENTO SEGURO)
+            agora = pd.to_datetime(datetime.now(ZoneInfo("America/Sao_Paulo")).date())
+            df_raw['dias_parado'] = (agora - df_raw['data_dt']).dt.days
             pendentes_antigos = df_raw[(df_raw['status'] == 'Aguardando') & (df_raw['dias_parado'] >= 2)]
             
             if not pendentes_antigos.empty:
@@ -360,8 +361,9 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             st.write("Por padrão, a tabela exporta **todo o histórico**. Se desejar um período específico, altere as datas abaixo:")
             
             col_f1, col_f2 = st.columns(2)
-            min_date = df_raw['data_dt'].min().date() if not df_raw['data_dt'].isna().all() else date.today()
-            max_date = df_raw['data_dt'].max().date() if not df_raw['data_dt'].isna().all() else date.today()
+            datas_validas = df_raw['data_dt'].dropna()
+            min_date = datas_validas.min().date() if not datas_validas.empty else date.today()
+            max_date = datas_validas.max().date() if not datas_validas.empty else date.today()
             
             dt_inicio = col_f1.date_input("Data Inicial", min_date)
             dt_fim = col_f2.date_input("Data Final", max_date)
@@ -475,7 +477,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 key="protocolo_selecionado"
             )
 
-            # Os campos só aparecem na tela quando um protocolo for ativamente selecionado
             if protocolo_sel != "Selecione um protocolo...":
                 dado_atual = df_raw[df_raw["protocolo"] == protocolo_sel].iloc[0]
 
@@ -491,8 +492,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 with st.form("form_atualizar"):
                     c_a, c_b = st.columns(2)
                     with c_a:
-                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"] else 0
-                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"], index=idx_status)
+                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"] else 0
+                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"], index=idx_status)
                     with c_b:
                         idx_aprov = ["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0
                         nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"], index=idx_aprov)
@@ -545,7 +546,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                                 
                             enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
 
-                            # Reseta o seletor para "Selecione um protocolo..." zerando a tela
                             st.session_state.protocolo_selecionado = "Selecione um protocolo..."
                             st.success(f"Protocolo {protocolo_sel} atualizado e e-mail enviado com sucesso!")
                             st.rerun()
