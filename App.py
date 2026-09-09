@@ -365,8 +365,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             min_date = datas_validas.min().date() if not datas_validas.empty else date.today()
             max_date = datas_validas.max().date() if not datas_validas.empty else date.today()
             
-            dt_inicio = col_f1.date_input("Data Inicial", min_date)
-            dt_fim = col_f2.date_input("Data Final", max_date)
+            dt_inicio = col_f1.date_input("Data Inicial", min_date, format="DD/MM/YYYY")
+            dt_fim = col_f2.date_input("Data Final", max_date, format="DD/MM/YYYY")
             
             df_export = df_raw[(df_raw['data_dt'].dt.date >= dt_inicio) & (df_raw['data_dt'].dt.date <= dt_fim)].copy()
             if df_export.empty:
