@@ -133,6 +133,8 @@ LISTA_SETORES = [
     "Suporte de Atendimento", "Unidades Fri On Line", "Unidades Noroeste"
 ]
 
+LISTA_STATUS_OPCOES = ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado", "Compra não Autorizada"]
+
 if os.path.exists(LOGO_PATH):
     st.sidebar.image(LOGO_PATH, use_container_width=True)
 
@@ -297,7 +299,7 @@ elif menu == "🔍 Consultar Protocolo":
                 
                 if item['aprovado'] == "Sim":
                     st.success(f"📅 **Data da Compra:** {item['data_compra']} | 🚚 **Previsão de Entrega:** {item['previsao_entrega']}")
-                elif item['aprovado'] == "Não":
+                elif item['aprovado'] == "Não" or item['status'] == "Compra não Autorizada":
                     st.error(f"❌ **Compra Não Autorizada.**")
                     st.warning(f"**Motivo da Não Aprovação:** {item.get('motivo_reprovacao', 'Não especificado')}")
                 else:
@@ -337,7 +339,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             col_m1.metric("Total de Pedidos", len(df_raw))
             col_m2.metric("Aguardando Cotação", len(df_raw[df_raw['status'] == 'Aguardando']))
             col_m3.metric("Compras Aprovadas", len(df_raw[df_raw['aprovado'] == 'Sim']))
-            col_m4.metric("Compras Recusadas", len(df_raw[df_raw['aprovado'] == 'Não']))
+            col_m4.metric("Compras Recusadas", len(df_raw[(df_raw['aprovado'] == 'Não') | (df_raw['status'] == 'Compra não Autorizada')]))
             
             st.write("**Filtrar lista rápida por categoria:**")
             col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
@@ -411,7 +413,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             elif st.session_state.filtro_status == "Aprovados":
                 df_exibicao = df_exibicao[df_exibicao['aprovado'] == 'Sim']
             elif st.session_state.filtro_status == "Recusados":
-                df_exibicao = df_exibicao[df_exibicao['aprovado'] == 'Não']
+                df_exibicao = df_exibicao[(df_exibicao['aprovado'] == 'Não') | (df_exibicao['status'] == 'Compra não Autorizada')]
 
             setor_pesquisa = st.selectbox(
                 "🔍 Pesquisar/Filtrar por Setor Específico:",
@@ -431,9 +433,9 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                     tag_urgencia = "🟡 Cotação"
                 
                 status_icon = "⏳" if row['status'] == "Aguardando" else "🔄"
-                if row['aprovado'] == "Sim":
+                if row['aprovado'] == "Sim" or row['status'] == "Comprado":
                     status_icon = "✅"
-                elif row['aprovado'] == "Não":
+                elif row['aprovado'] == "Não" or row['status'] == "Compra não Autorizada":
                     status_icon = "❌"
 
                 titulo_cartao = f"{status_icon} [{row['protocolo']}] - {row['requisitante']} ({row['setor']}) | {tag_urgencia} | Status: {row['status']}"
@@ -450,7 +452,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                         st.markdown(f"**Compra Aprovada?:** {row['aprovado']}")
                         st.markdown(f"**Data da Compra:** {row['data_compra']} | **Previsão:** {row['previsao_entrega']}")
                         st.markdown(f"**Valor Final:** {row.get('valor_final', '-')} | **Forma Pagto:** {row.get('forma_pagamento', '-')}")
-                        if row['aprovado'] == "Não":
+                        if row['aprovado'] == "Não" or row['status'] == "Compra não Autorizada":
                             st.markdown(f"**Motivo da Recusa:** {row['motivo_reprovacao']}")
                     
                     st.markdown(f"**📦 Produtos / Serviços Solicitados:**\n{row['produtos_qtd']}")
@@ -487,7 +489,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             st.markdown("---")
 
             # -----------------------------------------------------------------
-            # ATUALIZAR PEDIDO E STATUS (FINANCEIRO + LOG + OCULTO POR PADRÃO)
+            # ATUALIZAR PEDIDO E STATUS (AGORA COM 'COMPRADO' E 'COMPRA NÃO AUTORIZADA')
             # -----------------------------------------------------------------
             st.subheader("✏️ Atualizar Pedido e Status")
             
@@ -517,8 +519,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                 with st.form("form_atualizar"):
                     c_a, c_b = st.columns(2)
                     with c_a:
-                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"] else 0
-                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"], index=idx_status)
+                        idx_status = LISTA_STATUS_OPCOES.index(dado_atual['status']) if dado_atual['status'] in LISTA_STATUS_OPCOES else 0
+                        novo_status = st.selectbox("Status do Pedido", LISTA_STATUS_OPCOES, index=idx_status)
                     with c_b:
                         idx_aprov = ["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0
                         nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"], index=idx_aprov)
@@ -536,17 +538,22 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                         f_pagto = st.text_input("Forma de Pagamento", value=dado_atual.get('forma_pagamento', '-'))
 
                     motivo_reprovacao = st.text_area(
-                        "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada):",
+                        "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada ou 'Compra não Autorizada' no Status):",
                         value=dado_atual.get('motivo_reprovacao', '') if dado_atual.get('motivo_reprovacao') != '-' else ''
                     )
 
                     if st.form_submit_button("Salvar Alterações e Notificar Requisitante"):
-                        if nova_aprovacao == "Não" and not motivo_reprovacao.strip():
+                        e_reprovado = (nova_aprovacao == "Não") or (novo_status == "Compra não Autorizada")
+                        
+                        if e_reprovado and not motivo_reprovacao.strip():
                             st.error("⚠️ Digite o motivo da não aprovação para prosseguir.")
                         else:
-                            motivo_salvar = motivo_reprovacao.strip() if nova_aprovacao == "Não" else "-"
-                            
-                            # Registro do Log
+                            motivo_salvar = motivo_reprovacao.strip() if e_reprovado else "-"
+                            if novo_status == "Compra não Autorizada":
+                                nova_aprovacao = "Não"
+                            elif novo_status == "Comprado" and nova_aprovacao == "Pendente":
+                                nova_aprovacao = "Sim"
+
                             hora_atual = obter_hora_brasilia()
                             novo_log_item = f"[{hora_atual}] Status: {novo_status} | Aprovado: {nova_aprovacao}\n"
                             log_atualizado = str(dado_atual.get('historico_log', '')) + novo_log_item
