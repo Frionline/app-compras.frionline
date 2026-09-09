@@ -28,11 +28,9 @@ EMAIL_DESTINO_ADMIN = "franciel.frionline@gmail.com"
 EMAIL_REMETENTE = "franciel.frionline@gmail.com"
 SENHA_EMAIL_APP = "hieatxaemkrmfjmx"
 
-# Função para obter a hora exata no Fuso Horário de Brasília
 def obter_hora_brasilia():
     return datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
 
-# Função para envio de e-mails via SMTP Gmail
 def enviar_email(destino, assunto, corpo, caminho_anexo=None):
     if not SENHA_EMAIL_APP or SENHA_EMAIL_APP == "sua_senha_de_app_aqui":
         st.warning("⚠️ E-mail não enviado: A senha do aplicativo Google ainda não foi configurada no código.")
@@ -123,7 +121,6 @@ LISTA_SETORES = [
     "Suporte de Atendimento", "Unidades Fri On Line", "Unidades Noroeste"
 ]
 
-# Exibição da Logo no Topo do Menu Lateral
 if os.path.exists(LOGO_PATH):
     st.sidebar.image(LOGO_PATH, use_container_width=True)
 
@@ -229,7 +226,6 @@ if menu == "📝 Nova Solicitação":
                 conn.commit()
                 conn.close()
                 
-                # Notificação por E-mail para a Logística
                 corpo_email_admin = f"""
                 <h2>Nova Solicitação de Compra Recebida - Fri On Line</h2>
                 <p><b>Protocolo:</b> {protocolo}</p>
@@ -243,7 +239,6 @@ if menu == "📝 Nova Solicitação":
                 """
                 enviar_email(EMAIL_DESTINO_ADMIN, f"[NOVO PEDIDO] Protocolo {protocolo} - {requisitante}", corpo_email_admin, caminho_salvo if caminho_salvo != "-" else None)
 
-                # Confirmação por E-mail para o Colaborador
                 corpo_email_usuario = f"""
                 <h2>Solicitação de Compra Registrada - Fri On Line</h2>
                 <p>Olá, {requisitante}!</p>
@@ -303,7 +298,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     st.title("📊 Painel de Gestão e Métricas de Compras")
     
     senha = st.sidebar.text_input("Senha do Administrador", type="password")
-    if senha == "Frion@2603":
+    if senha == "admin123":
         st.sidebar.success("Acesso Autorizado")
         
         conn = sqlite3.connect(DB_PATH)
@@ -311,9 +306,18 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
         conn.close()
         
         if not df_raw.empty:
-            # Tratamento de data para cálculos e filtros
             df_raw['data_dt'] = pd.to_datetime(df_raw['data_pedido'].str.slice(0, 10), format='%d/%m/%Y', errors='coerce')
             
+            # NOTIFICAÇÃO VISUAL NO DASHBOARD: PEDIDOS EM "AGUARDANDO" HÁ MAIS DE 2 DIAS
+            df_raw['dias_parado'] = (datetime.now(ZoneInfo("America/Sao_Paulo")).date() - df_raw['data_dt'].dt.date).dt.days
+            pendentes_antigos = df_raw[(df_raw['status'] == 'Aguardando') & (df_raw['dias_parado'] >= 2)]
+            
+            if not pendentes_antigos.empty:
+                st.warning(
+                    f"⏰ **LEMBRETE DE PENDÊNCIAS:** Você tem **{len(pendentes_antigos)} solicitação(ões)** com status 'Aguardando' há mais de 2 dias sem alteração!\n\n" +
+                    " Protocolos que precisam de andamento: " + ", ".join(f"`{p}`" for p in pendentes_antigos['protocolo'].tolist())
+                )
+
             # VISÃO GERAL E MÉTRICAS
             st.subheader("📈 Visão Geral dos Pedidos")
             col_m1, col_m2, col_m3, col_m4 = st.columns(4)
@@ -322,27 +326,25 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             col_m3.metric("Compras Aprovadas", len(df_raw[df_raw['aprovado'] == 'Sim']))
             col_m4.metric("Compras Recusadas", len(df_raw[df_raw['aprovado'] == 'Não']))
             
-            st.write("**Filtrar lista rápida e rolar até as solicitações:**")
+            st.write("**Filtrar lista rápida por categoria:**")
             col_b1, col_b2, col_b3, col_b4, col_b5 = st.columns(5)
             
             if "filtro_status" not in st.session_state:
                 st.session_state.filtro_status = "Todos"
-                
-            # Função auxiliar de rolagem com redirecionamento de âncora visual
-            def set_filtro_e_rolar(status_nome):
+
+            def selecionar_filtro(status_nome):
                 st.session_state.filtro_status = status_nome
-                st.markdown("<script>window.location.href='#solicitacoes_registradas';</script>", unsafe_allow_html=True)
 
             if col_b1.button("📋 Todos"):
-                set_filtro_e_rolar("Todos")
+                selecionar_filtro("Todos")
             if col_b2.button("⏳ Aguardando Cotação"):
-                set_filtro_e_rolar("Aguardando")
+                selecionar_filtro("Aguardando")
             if col_b3.button("🔄 Em Cotação"):
-                set_filtro_e_rolar("Em Cotação")
+                selecionar_filtro("Em Cotação")
             if col_b4.button("✅ Compras Aprovadas"):
-                set_filtro_e_rolar("Aprovados")
+                selecionar_filtro("Aprovados")
             if col_b5.button("❌ Compras Recusadas"):
-                set_filtro_e_rolar("Recusados")
+                selecionar_filtro("Recusados")
 
             st.markdown("---")
 
@@ -355,7 +357,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             
             # EXPORTAR RELATÓRIOS E SELEÇÃO DE PERÍODO
             st.subheader("📥 Exportar Relatórios e Selecionar Período")
-            st.write("Por padrão, a tabela exporta **todo o histórico**. Se desejar um período específico, altere os campos abaixo:")
+            st.write("Por padrão, a tabela exporta **todo o histórico**. Se desejar um período específico, altere as datas abaixo:")
             
             col_f1, col_f2 = st.columns(2)
             min_date = df_raw['data_dt'].min().date() if not df_raw['data_dt'].isna().all() else date.today()
@@ -364,7 +366,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             dt_inicio = col_f1.date_input("Data Inicial", min_date)
             dt_fim = col_f2.date_input("Data Final", max_date)
             
-            # Filtro aplicado para a exportação
             df_export = df_raw[(df_raw['data_dt'].dt.date >= dt_inicio) & (df_raw['data_dt'].dt.date <= dt_fim)].copy()
             if df_export.empty:
                 df_export = df_raw.copy()
@@ -388,11 +389,9 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
 
             st.markdown("---")
             
-            # SOLICITAÇÕES REGISTRADAS (COM ÂNCORA PARA ROLAGEM AUTOMÁTICA)
-            st.markdown("<div id='solicitacoes_registradas'></div>", unsafe_allow_html=True)
-            st.subheader("📋 Solicitações Registradas")
+            # SOLICITAÇÕES REGISTRADAS
+            st.subheader(f"📋 Solicitações Registradas - Categoria Filtrada: ({st.session_state.filtro_status})")
             
-            # Filtragem por status de botão rápido
             df_exibicao = df_raw.copy()
             if st.session_state.filtro_status == "Aguardando":
                 df_exibicao = df_exibicao[df_exibicao['status'] == 'Aguardando']
@@ -412,9 +411,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
             if setor_pesquisa != "Todos os Setores":
                 df_exibicao = df_exibicao[df_exibicao['setor'] == setor_pesquisa]
 
-            st.write(f"Exibindo **{len(df_exibicao)}** solicitação(ões) cadastrada(s):")
+            st.write(f"Exibindo **{len(df_exibicao)}** solicitação(ões):")
             
-            # Apresentação em Cartões Expansíveis Verticais
             for _, row in df_exibicao.iterrows():
                 tag_urgencia = "🟢 Normal"
                 if row['tipo_solicitacao'] == "Urgente":
@@ -444,12 +442,11 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                         if row['aprovado'] == "Não":
                             st.markdown(f"**Motivo da Recusa:** {row['motivo_reprovacao']}")
                     
-                    st.markdown("---")
-                    st.markdown(f"**📦 Produtos / Serviços Solicitados:**\n\n{row['produtos_qtd']}")
-                    st.markdown(f"**📝 Justificativa:**\n\n{row['justificativa']}")
+                    st.markdown(f"**📦 Produtos / Serviços Solicitados:**\n{row['produtos_qtd']}")
+                    st.markdown(f"**📝 Justificativa:**\n{row['justificativa']}")
                     
                     if row['fornecedores']:
-                        st.markdown(f"**🔗 Fornecedores Sugeridos / Links:**\n\n{row['fornecedores']}")
+                        st.markdown(f"**🔗 Fornecedores Sugeridos / Links:**\n{row['fornecedores']}")
                     
                     if row['caminho_anexo'] != "-" and os.path.exists(row['caminho_anexo']):
                         with open(row['caminho_anexo'], "rb") as file:
@@ -461,71 +458,99 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                             )
 
             st.markdown("---")
-            
-            # ATUALIZAR PEDIDO E STATUS
+
+            # -----------------------------------------------------------------
+            # ATUALIZAR PEDIDO E STATUS (CAMPOS ZERADOS E OCULTOS POR PADRÃO)
+            # -----------------------------------------------------------------
             st.subheader("✏️ Atualizar Pedido e Status")
-            protocolo_sel = st.selectbox("Selecione o Protocolo para Editar:", df_raw["protocolo"].tolist())
-            dado_atual = df_raw[df_raw["protocolo"] == protocolo_sel].iloc[0]
+            
+            opcoes_protocolo = ["Selecione um protocolo..."] + df_raw["protocolo"].tolist()
+            
+            if "protocolo_selecionado" not in st.session_state:
+                st.session_state.protocolo_selecionado = "Selecione um protocolo..."
 
-            with st.form("form_atualizar"):
-                c_a, c_b = st.columns(2)
-                with c_a:
-                    novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"],
-                        index=["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Comprado"] else 0)
-                with c_b:
-                    nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"],
-                        index=["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0)
-                
-                c_c, c_d = st.columns(2)
-                with c_c:
-                    dt_compra = st.text_input("Data da Compra (DD/MM/AAAA)", value=dado_atual['data_compra'])
-                with c_d:
-                    dt_entrega = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=dado_atual['previsao_entrega'])
-                
-                motivo_reprovacao = st.text_area(
-                    "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada):",
-                    value=dado_atual.get('motivo_reprovacao', '') if dado_atual.get('motivo_reprovacao') != '-' else ''
-                )
+            protocolo_sel = st.selectbox(
+                "Selecione o Protocolo para Editar:",
+                opcoes_protocolo,
+                key="protocolo_selecionado"
+            )
 
-                if st.form_submit_button("Salvar Alterações e Notificar Requisitante"):
-                    if nova_aprovacao == "Não" and not motivo_reprovacao.strip():
-                        st.error("⚠️ Digite o motivo da não aprovação para prosseguir.")
-                    else:
-                        motivo_salvar = motivo_reprovacao.strip() if nova_aprovacao == "Não" else "-"
-                        
-                        conn = sqlite3.connect(DB_PATH)
-                        c = conn.cursor()
-                        c.execute('''
-                            UPDATE solicitacoes 
-                            SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?, motivo_reprovacao = ?
-                            WHERE protocolo = ?
-                        ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, motivo_salvar, protocolo_sel))
-                        conn.commit()
-                        conn.close()
-                        
-                        if nova_aprovacao == "Não":
-                            corpo_email_usuario = f"""
-                            <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
-                            <p>Olá, <b>{dado_atual['requisitante']}</b>!</p>
-                            <p>Sua solicitação de compra <b>(Protocolo {protocolo_sel})</b> foi analisada e <b>NÃO FOI APROVADA</b>.</p>
-                            <p><b>Motivo da Não Aprovação:</b><br>{motivo_salvar}</p>
-                            <p>Caso tenha dúvidas, entre em contato com o setor de suprimentos/logística.</p>
-                            """
+            # Os campos só aparecem na tela quando um protocolo for ativamente selecionado
+            if protocolo_sel != "Selecione um protocolo...":
+                dado_atual = df_raw[df_raw["protocolo"] == protocolo_sel].iloc[0]
+
+                if dado_atual['caminho_anexo'] != "-" and os.path.exists(dado_atual['caminho_anexo']):
+                    with open(dado_atual['caminho_anexo'], "rb") as file:
+                        st.download_button(
+                            label="📎 Baixar Anexo deste Pedido",
+                            data=file,
+                            file_name=os.path.basename(dado_atual['caminho_anexo']),
+                            key="btn_anexo_editar"
+                        )
+
+                with st.form("form_atualizar"):
+                    c_a, c_b = st.columns(2)
+                    with c_a:
+                        idx_status = ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"].index(dado_atual['status']) if dado_atual['status'] in ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"] else 0
+                        novo_status = st.selectbox("Status do Pedido", ["Aguardando", "Em Cotação", "Cotação Enviada", "Finalizado"], index=idx_status)
+                    with c_b:
+                        idx_aprov = ["Pendente", "Sim", "Não"].index(dado_atual['aprovado']) if dado_atual['aprovado'] in ["Pendente", "Sim", "Não"] else 0
+                        nova_aprovacao = st.selectbox("Compra Aprovada?", ["Pendente", "Sim", "Não"], index=idx_aprov)
+                    
+                    c_c, c_d = st.columns(2)
+                    with c_c:
+                        dt_compra = st.text_input("Data da Compra (DD/MM/AAAA)", value=dado_atual['data_compra'])
+                    with c_d:
+                        dt_entrega = st.text_input("Previsão de Entrega (DD/MM/AAAA)", value=dado_atual['previsao_entrega'])
+                    
+                    motivo_reprovacao = st.text_area(
+                        "Motivo da Não Aprovação (Obrigatório se selecionou 'Não' em Compra Aprovada):",
+                        value=dado_atual.get('motivo_reprovacao', '') if dado_atual.get('motivo_reprovacao') != '-' else ''
+                    )
+
+                    if st.form_submit_button("Salvar Alterações e Notificar Requisitante"):
+                        if nova_aprovacao == "Não" and not motivo_reprovacao.strip():
+                            st.error("⚠️ Digite o motivo da não aprovação para prosseguir.")
                         else:
-                            corpo_email_usuario = f"""
-                            <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
-                            <p>Olá, <b>{dado_atual['requisitante']}</b>!</p>
-                            <p><b>Protocolo:</b> {protocolo_sel}</p>
-                            <p><b>Status Atual:</b> {novo_status}</p>
-                            <p><b>Compra Aprovada?:</b> {nova_aprovacao}</p>
-                            <p><b>Data da Compra:</b> {dt_compra}</p>
-                            <p><b>Previsão de Entrega:</b> {dt_entrega}</p>
-                            """
+                            motivo_salvar = motivo_reprovacao.strip() if nova_aprovacao == "Não" else "-"
                             
-                        enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
+                            conn = sqlite3.connect(DB_PATH)
+                            c = conn.cursor()
+                            c.execute('''
+                                UPDATE solicitacoes 
+                                SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?, motivo_reprovacao = ?
+                                WHERE protocolo = ?
+                            ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, motivo_salvar, protocolo_sel))
+                            conn.commit()
+                            conn.close()
+                            
+                            if nova_aprovacao == "Não":
+                                corpo_email_usuario = f"""
+                                <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
+                                <p>Olá, <b>{dado_atual['requisitante']}</b>!</p>
+                                <p>Sua solicitação de compra <b>(Protocolo {protocolo_sel})</b> foi analisada e <b>NÃO FOI APROVADA</b>.</p>
+                                <p><b>Motivo da Não Aprovação:</b><br>{motivo_salvar}</p>
+                                <p>Caso tenha dúvidas, entre em contato com o setor de suprimentos/logística.</p>
+                                """
+                            else:
+                                corpo_email_usuario = f"""
+                                <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
+                                <p>Olá, <b>{dado_atual['requisitante']}</b>!</p>
+                                <p><b>Protocolo:</b> {protocolo_sel}</p>
+                                <p><b>Status Atual:</b> {novo_status}</p>
+                                <p><b>Compra Aprovada?:</b> {nova_aprovacao}</p>
+                                <p><b>Data da Compra:</b> {dt_compra}</p>
+                                <p><b>Previsão de Entrega:</b> {dt_entrega}</p>
+                                """
+                                
+                            enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
 
-                        st.success(f"Protocolo {protocolo_sel} atualizado e e-mail enviado para {dado_atual['email_requisitante']} com sucesso!")
-                        st.rerun()
+                            # Reseta o seletor para "Selecione um protocolo..." zerando a tela
+                            st.session_state.protocolo_selecionado = "Selecione um protocolo..."
+                            st.success(f"Protocolo {protocolo_sel} atualizado e e-mail enviado com sucesso!")
+                            st.rerun()
+            else:
+                st.info("👆 Selecione um protocolo na caixa acima para abrir e atualizar os dados do pedido.")
         else:
             st.info("Nenhuma solicitação encontrada.")
     else:
