@@ -1,4 +1,15 @@
 import streamlit as st
+
+# Oculta a barra de topo (header) e o rodapé da página
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    div[data-testid="stToolbar"] {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 import sqlite3
 import pandas as pd
 from datetime import datetime, date
