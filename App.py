@@ -10,7 +10,7 @@ hide_streamlit_style = """
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-import sqlite3
+
 import pandas as pd
 from datetime import datetime, date
 from zoneinfo import ZoneInfo
@@ -20,10 +20,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
+from sqlalchemy import create_engine, text
 
 # Configurações de Diretórios
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "compras.db")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 LOGO_PATH = os.path.join(BASE_DIR, "logo.png")
 
@@ -33,18 +33,27 @@ if not os.path.exists(UPLOADS_DIR):
 st.set_page_config(page_title="Solicitação de Compras - Fri On Line", page_icon="🛒", layout="wide")
 
 # -----------------------------------------------------------------------------
+# CONEXÃO COM BANCO DE DADOS (SUPABASE / POSTGRESQL)
+# -----------------------------------------------------------------------------
+def get_db_engine():
+    db_url = st.secrets["postgres"]["url"]
+    return create_engine(db_url)
+
+# -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DE E-MAIL
 # -----------------------------------------------------------------------------
 EMAIL_DESTINO_ADMIN = "franciel.frionline@gmail.com"
 EMAIL_REMETENTE = "franciel.frionline@gmail.com"
-SENHA_EMAIL_APP = "hieatxaemkrmfjmx"
+
+# Busca a senha do app Gmail preferencialmente dos Secrets do Streamlit Cloud
+SENHA_EMAIL_APP = st.secrets.get("smtp", {}).get("password", "hieatxaemkrmfjmx")
 
 def obter_hora_brasilia():
     return datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%d/%m/%Y %H:%M")
 
 def enviar_email(destino, assunto, corpo, caminho_anexo=None):
     if not SENHA_EMAIL_APP or SENHA_EMAIL_APP == "sua_senha_de_app_aqui":
-        st.warning("⚠️ E-mail não enviado: A senha do aplicativo Google ainda não foi configurada no código.")
+        st.warning("⚠️ E-mail não enviado: A senha do aplicativo Google ainda não foi configurada.")
         return False
         
     try:
@@ -73,14 +82,13 @@ def enviar_email(destino, assunto, corpo, caminho_anexo=None):
         st.error(f"Erro ao enviar e-mail: {e}")
         return False
 
-# Inicialização e Migração do Banco de Dados
+# Inicialização e Migração da Tabela no PostgreSQL
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''
+    engine = get_db_engine()
+    sql_create = text('''
         CREATE TABLE IF NOT EXISTS solicitacoes (
-            protocolo TEXT PRIMARY KEY,
-            data_pedido TEXT,
+            protocolo VARCHAR(30) PRIMARY KEY,
+            data_pedido VARCHAR(30),
             requisitante TEXT,
             email_requisitante TEXT,
             setor TEXT,
@@ -93,42 +101,26 @@ def init_db():
             tem_rateio TEXT,
             detalhe_rateio TEXT,
             caminho_anexo TEXT,
-            status TEXT,
-            aprovado TEXT,
-            data_compra TEXT,
-            previsao_entrega TEXT,
-            motivo_reprovacao TEXT,
-            valor_final TEXT,
-            forma_pagamento TEXT,
-            historico_log TEXT
-        )
+            status VARCHAR(50),
+            aprovado VARCHAR(20),
+            data_compra VARCHAR(30),
+            previsao_entrega VARCHAR(30),
+            motivo_reprovacao TEXT DEFAULT '-',
+            valor_final TEXT DEFAULT '-',
+            forma_pagamento TEXT DEFAULT '-',
+            historico_log TEXT DEFAULT ''
+        );
     ''')
-    
-    c.execute("PRAGMA table_info(solicitacoes)")
-    colunas = [coluna[1] for coluna in c.fetchall()]
-    
-    colunas_novas = {
-        "motivo_reprovacao": "TEXT DEFAULT '-'",
-        "valor_final": "TEXT DEFAULT '-'",
-        "forma_pagamento": "TEXT DEFAULT '-'",
-        "historico_log": "TEXT DEFAULT ''"
-    }
-    
-    for col, tipo in colunas_novas.items():
-        if col not in colunas:
-            c.execute(f"ALTER TABLE solicitacoes ADD COLUMN {col} {tipo}")
-        
-    conn.commit()
-    conn.close()
+    with engine.begin() as conn:
+        conn.execute(sql_create)
 
 init_db()
 
 def gerar_protocolo():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM solicitacoes")
-    count = c.fetchone()[0] + 1
-    conn.close()
+    engine = get_db_engine()
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT COUNT(*) FROM solicitacoes;")).fetchone()
+        count = res[0] + 1 if res else 1
     ano = datetime.now(ZoneInfo("America/Sao_Paulo")).year
     return f"FOL-{ano}-{count:04d}"
 
@@ -166,7 +158,7 @@ if menu == "📝 Nova Solicitação":
     with col_titulo:
         st.title("Solicitação de Compras (Geral)")
         st.write("Preencha as informações abaixo para gerar seu pedido de compra.")
-    
+        
     st.markdown("---")
 
     with st.form("form_compra", clear_on_submit=True):
@@ -238,20 +230,44 @@ if menu == "📝 Nova Solicitação":
                     with open(caminho_salvo, "wb") as f:
                         f.write(arquivo_anexo.getbuffer())
 
-                conn = sqlite3.connect(DB_PATH)
-                c = conn.cursor()
-                c.execute('''
+                engine = get_db_engine()
+                sql_insert = text('''
                     INSERT INTO solicitacoes 
                     (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
                      previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
                      detalhe_rateio, caminho_anexo, status, aprovado, data_compra, previsao_entrega, motivo_reprovacao,
                      valor_final, forma_pagamento, historico_log)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (protocolo, data_pedido, requisitante, email_requisitante, setor, produtos_qtd, tipo_solicitacao, 
-                      previsto_orcamento, valor_orcamento, justificativa, fornecedores, tem_rateio, 
-                      detalhe_rateio if tem_rateio == "Outro" else "-", caminho_salvo, "Aguardando", "Pendente", "-", "-", "-", "-", "-", log_inicial))
-                conn.commit()
-                conn.close()
+                    VALUES (:protocolo, :data_pedido, :requisitante, :email_requisitante, :setor, :produtos_qtd, :tipo_solicitacao, 
+                            :previsto_orcamento, :valor_orcamento, :justificativa, :fornecedores, :tem_rateio, 
+                            :detalhe_rateio, :caminho_anexo, :status, :aprovado, :data_compra, :previsao_entrega, :motivo_reprovacao,
+                            :valor_final, :forma_pagamento, :historico_log)
+                ''')
+                
+                with engine.begin() as conn:
+                    conn.execute(sql_insert, {
+                        "protocolo": protocolo,
+                        "data_pedido": data_pedido,
+                        "requisitante": requisitante,
+                        "email_requisitante": email_requisitante,
+                        "setor": setor,
+                        "produtos_qtd": produtos_qtd,
+                        "tipo_solicitacao": tipo_solicitacao,
+                        "previsto_orcamento": previsto_orcamento,
+                        "valor_orcamento": valor_orcamento,
+                        "justificativa": justificativa,
+                        "fornecedores": fornecedores,
+                        "tem_rateio": tem_rateio,
+                        "detalhe_rateio": detalhe_rateio if tem_rateio == "Outro" else "-",
+                        "caminho_anexo": caminho_salvo,
+                        "status": "Aguardando",
+                        "aprovado": "Pendente",
+                        "data_compra": "-",
+                        "previsao_entrega": "-",
+                        "motivo_reprovacao": "-",
+                        "valor_final": "-",
+                        "forma_pagamento": "-",
+                        "historico_log": log_inicial
+                    })
                 
                 corpo_email_admin = f"""
                 <h2>Nova Solicitação de Compra Recebida - Fri On Line</h2>
@@ -289,10 +305,10 @@ elif menu == "🔍 Consultar Protocolo":
     
     if st.button("Buscar"):
         if proto_busca:
-            conn = sqlite3.connect(DB_PATH)
-            query = "SELECT * FROM solicitacoes WHERE protocolo = ?"
-            df = pd.read_sql_query(query, conn, params=(proto_busca,))
-            conn.close()
+            engine = get_db_engine()
+            query = text("SELECT * FROM solicitacoes WHERE UPPER(protocolo) = :protocolo")
+            with engine.connect() as conn:
+                df = pd.read_sql_query(query, conn, params={"protocolo": proto_busca.upper()})
             
             if not df.empty:
                 item = df.iloc[0]
@@ -328,9 +344,9 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
-        conn = sqlite3.connect(DB_PATH)
-        df_raw = pd.read_sql_query("SELECT * FROM solicitacoes", conn)
-        conn.close()
+        engine = get_db_engine()
+        with engine.connect() as conn:
+            df_raw = pd.read_sql_query(text("SELECT * FROM solicitacoes ORDER BY protocolo DESC;"), conn)
         
         if not df_raw.empty:
             df_raw['data_dt'] = pd.to_datetime(df_raw['data_pedido'].str.slice(0, 10), format='%d/%m/%Y', errors='coerce')
@@ -566,16 +582,25 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                             novo_log_item = f"[{hora_atual}] Status: {novo_status} | Aprovado: {nova_aprovacao}\n"
                             log_atualizado = str(dado_atual.get('historico_log', '')) + novo_log_item
 
-                            conn = sqlite3.connect(DB_PATH)
-                            c = conn.cursor()
-                            c.execute('''
+                            engine = get_db_engine()
+                            sql_update = text('''
                                 UPDATE solicitacoes 
-                                SET status = ?, aprovado = ?, data_compra = ?, previsao_entrega = ?, 
-                                    motivo_reprovacao = ?, valor_final = ?, forma_pagamento = ?, historico_log = ?
-                                WHERE protocolo = ?
-                            ''', (novo_status, nova_aprovacao, dt_compra, dt_entrega, motivo_salvar, v_final, f_pagto, log_atualizado, protocolo_sel))
-                            conn.commit()
-                            conn.close()
+                                SET status = :status, aprovado = :aprovado, data_compra = :data_compra, previsao_entrega = :previsao_entrega, 
+                                    motivo_reprovacao = :motivo_reprovacao, valor_final = :valor_final, forma_pagamento = :forma_pagamento, historico_log = :historico_log
+                                WHERE protocolo = :protocolo
+                            ''')
+                            with engine.begin() as conn:
+                                conn.execute(sql_update, {
+                                    "status": novo_status,
+                                    "aprovado": nova_aprovacao,
+                                    "data_compra": dt_compra,
+                                    "previsao_entrega": dt_entrega,
+                                    "motivo_reprovacao": motivo_salvar,
+                                    "valor_final": v_final,
+                                    "forma_pagamento": f_pagto,
+                                    "historico_log": log_atualizado,
+                                    "protocolo": protocolo_sel
+                                })
                             
                             if nova_aprovacao == "Não":
                                 corpo_email_usuario = f"""
@@ -598,7 +623,6 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                                 
                             enviar_email(dado_atual['email_requisitante'], f"[ATUALIZAÇÃO] Pedido {protocolo_sel}", corpo_email_usuario)
 
-                            # Limpa a chave do estado do widget de forma segura antes de recarregar a página
                             if "protocolo_selecionado" in st.session_state:
                                 del st.session_state["protocolo_selecionado"]
 
