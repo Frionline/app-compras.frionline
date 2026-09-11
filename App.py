@@ -33,11 +33,53 @@ if not os.path.exists(UPLOADS_DIR):
 st.set_page_config(page_title="Solicitação de Compras - Fri On Line", page_icon="🛒", layout="wide")
 
 # -----------------------------------------------------------------------------
-# CONEXÃO COM BANCO DE DADOS (SUPABASE / POSTGRESQL)
+# CONEXÃO COM BANCO DE DADOS (SUPABASE / POSTGRESQL) - OTIMIZADA COM CACHE
 # -----------------------------------------------------------------------------
+@st.cache_resource
 def get_db_engine():
     db_url = st.secrets["postgres"]["url"]
-    return create_engine(db_url)
+    return create_engine(db_url, pool_pre_ping=True, pool_size=5, max_overflow=10)
+
+@st.cache_resource
+def init_db():
+    engine = get_db_engine()
+    sql_create = text('''
+        CREATE TABLE IF NOT EXISTS solicitacoes (
+            protocolo VARCHAR(30) PRIMARY KEY,
+            data_pedido VARCHAR(30),
+            requisitante TEXT,
+            email_requisitante TEXT,
+            setor TEXT,
+            produtos_qtd TEXT,
+            tipo_solicitacao TEXT,
+            previsto_orcamento TEXT,
+            valor_orcamento TEXT,
+            justificativa TEXT,
+            fornecedores TEXT,
+            tem_rateio TEXT,
+            detalhe_rateio TEXT,
+            caminho_anexo TEXT,
+            status VARCHAR(50),
+            aprovado VARCHAR(20),
+            data_compra VARCHAR(30),
+            previsao_entrega VARCHAR(30),
+            motivo_reprovacao TEXT DEFAULT '-',
+            valor_final TEXT DEFAULT '-',
+            forma_pagamento TEXT DEFAULT '-',
+            historico_log TEXT DEFAULT ''
+        );
+    ''')
+    with engine.begin() as conn:
+        conn.execute(sql_create)
+
+# Inicializa o banco de dados sem recriar a tabela a cada clique
+init_db()
+
+@st.cache_data(ttl=15)
+def carregar_dados_solicitacoes():
+    engine = get_db_engine()
+    with engine.connect() as conn:
+        return pd.read_sql_query(text("SELECT * FROM solicitacoes ORDER BY protocolo DESC;"), conn)
 
 # -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DE E-MAIL
@@ -81,40 +123,6 @@ def enviar_email(destino, assunto, corpo, caminho_anexo=None):
     except Exception as e:
         st.error(f"Erro ao enviar e-mail: {e}")
         return False
-
-# Inicialização e Migração da Tabela no PostgreSQL
-def init_db():
-    engine = get_db_engine()
-    sql_create = text('''
-        CREATE TABLE IF NOT EXISTS solicitacoes (
-            protocolo VARCHAR(30) PRIMARY KEY,
-            data_pedido VARCHAR(30),
-            requisitante TEXT,
-            email_requisitante TEXT,
-            setor TEXT,
-            produtos_qtd TEXT,
-            tipo_solicitacao TEXT,
-            previsto_orcamento TEXT,
-            valor_orcamento TEXT,
-            justificativa TEXT,
-            fornecedores TEXT,
-            tem_rateio TEXT,
-            detalhe_rateio TEXT,
-            caminho_anexo TEXT,
-            status VARCHAR(50),
-            aprovado VARCHAR(20),
-            data_compra VARCHAR(30),
-            previsao_entrega VARCHAR(30),
-            motivo_reprovacao TEXT DEFAULT '-',
-            valor_final TEXT DEFAULT '-',
-            forma_pagamento TEXT DEFAULT '-',
-            historico_log TEXT DEFAULT ''
-        );
-    ''')
-    with engine.begin() as conn:
-        conn.execute(sql_create)
-
-init_db()
 
 def gerar_protocolo():
     engine = get_db_engine()
@@ -269,6 +277,8 @@ if menu == "📝 Nova Solicitação":
                         "historico_log": log_inicial
                     })
                 
+                st.cache_data.clear() # Limpa o cache para refletir a nova inserção instantaneamente
+                
                 corpo_email_admin = f"""
                 <h2>Nova Solicitação de Compra Recebida - Fri On Line</h2>
                 <p><b>Protocolo:</b> {protocolo}</p>
@@ -344,9 +354,7 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
     if senha == "Frion@2603":
         st.sidebar.success("Acesso Autorizado")
         
-        engine = get_db_engine()
-        with engine.connect() as conn:
-            df_raw = pd.read_sql_query(text("SELECT * FROM solicitacoes ORDER BY protocolo DESC;"), conn)
+        df_raw = carregar_dados_solicitacoes()
         
         if not df_raw.empty:
             df_raw['data_dt'] = pd.to_datetime(df_raw['data_pedido'].str.slice(0, 10), format='%d/%m/%Y', errors='coerce')
@@ -602,6 +610,8 @@ elif menu == "📊 Dashboard & Gestão (Compras)":
                                     "protocolo": protocolo_sel
                                 })
                             
+                            st.cache_data.clear() # Limpa o cache para refletir a atualização na hora
+
                             if nova_aprovacao == "Não":
                                 corpo_email_usuario = f"""
                                 <h2>Atualização sobre o seu Pedido de Compra - Fri On Line</h2>
